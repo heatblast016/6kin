@@ -1,8 +1,3 @@
-
-import matplotlib.pyplot as plt
-
-from mpl_toolkits.mplot3d import Axes3D
-
 import numpy as np
 import math
 import transformations as tfm
@@ -14,8 +9,6 @@ class solver:
         self.l2 = l2
         self.l3 = l3
         self.l4 = l4
-
-
 
     def solve_forward(self, q1: float,q2: float,q3: float,q4: float,q5: float,q6: float): 
         '''Returns end effector and simplified link positions for all links'''
@@ -51,29 +44,36 @@ class solver:
         x3 = np.matmul(t4,np.array([0,0,0,1]))
         x4 = np.matmul(t6, np.array([self.l4,0,0,1]))
         return [x1,x2,x3,x4]
-
-a = solver(1,1,1,0.25)
-
-coords = a.solve_forward(math.pi/4,math.pi/-4,math.pi/4,math.pi/8,math.pi/2,0)
-
-fig = plt.figure(figsize=(4,4))
-
-ax = fig.add_subplot(111, projection='3d')
-
-ax.set_xlim3d(-4, 4)
-ax.set_ylim3d(-4, 4)
-ax.set_zlim3d(0, 4)
-
-for i in range(0,3):
-    start = coords[i]
-    end = coords[i+1]
-    x, y, z = [start[0], end[0]], [start[1], end[1]], [start[2], end[2]]
-    ax.scatter(x, y, z, c='red', s=100)
-    ax.plot(x, y, z, color='black')
-
-start = [0,0,0]
-end = coords[0]
-x, y, z = [start[0], end[0]], [start[1], end[1]], [start[2], end[2]]
-ax.scatter(x, y, z, c='red', s=100)
-ax.plot(x, y, z, color='black')
-plt.show()
+    def solve_inverse_2dof(self,x,z):
+        """Solves 2 degree of freedom inverse kinematics as a utility function for 3d inverse kinematics"""
+        #Calculates cosine of joint 2 using lengths
+        c2 = (x**2 + z**2 - self.l1**2 -self.l2**2)/(2*self.l1*self.l2)
+        
+        #Checks edge cases and returns special outputs
+        if math.abs(c2) > 1:
+            return []
+        elif c2 == 1:
+            return [(math.atan2(z,x),0)]
+        elif c2 == -1 and (x**2 + z**2) == 0:
+            return [(0,math.pi)]
+        else:
+            #Solves the general case rotation 
+            q21 = math.acos(c2)
+            q22 = -math.acos(c2)
+            solutions = []
+            solutions2 = []
+            if q21 == q22:
+                solutions2.append(q21)
+            else:
+                solutions2.append(q21)
+                solutions2.append(q22)
+            theta = math.atan2(z,x)
+            for q2 in solutions2:
+                q1 = theta - math.atan2(self.l2*math.sin(q2),self.l1 + self.l2*math.cos(q2))
+                solutions.append((q1,q2))
+            return solutions
+    def solve_inverse_3DOF(x,y,z):
+        solutions = []
+        baserotations = [math.atan2(y,x)]
+    def solve_inverse(x,y,z,roll,pitch,yaw):
+        pass
