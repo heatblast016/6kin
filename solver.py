@@ -57,7 +57,7 @@ class solver:
         return [x1, x2, x3, x4]
 
     def solve_inverse_2dof(self, x, z):
-        """Solves 2 degree of freedom inverse kinematics as a utility function for 3d inverse kinematics"""
+        """Solves 2 degree of freedom inverse kinematics"""
         # Calculates cosine of joint 2 using lengths
         c2 = (x**2 + z**2 - self.l2**2 - self.l3**2) / (2 * self.l3 * self.l2)
 
@@ -69,7 +69,7 @@ class solver:
         elif c2 == -1 and (x**2 + z**2) == 0:
             return [(0, math.pi)]
         else:
-            # Solves the general case rotation
+            # Solves the general case 
             q21 = math.acos(c2)
             q22 = -math.acos(c2)
             solutions = []
@@ -87,9 +87,11 @@ class solver:
             return solutions
 
     def solve_inverse_3dof(self, x, y, z):
-        """Solves 3 degrees-of-freedom inverse kinematics problems"""
+        """Solves 3 degrees-of-freedom inverse kinematics problem"""
         solutions = []
         baserotations = [math.atan2(y, x), math.atan2(y, x) + math.pi]
+
+        #Solves equations for each possible base rotation
         for i, q1 in enumerate(baserotations):
             sols = self.solve_inverse_2dof(
                 (-1)**i * math.sqrt(x**2 + y**2), -1 * z + self.l1)
@@ -108,22 +110,29 @@ class solver:
             tfm.rotation_x(roll))
 
         end_offset = np.array([self.l4, 0, 0])
+
+        #Gets wrist position from end position and orientation
         wrist_pos = fingertip - np.matmul(end_rotation, end_offset)
+
+        #Solves 3-dof IK for wrist
         sols_wrist = self.solve_inverse_3dof(
             wrist_pos[0], wrist_pos[1], wrist_pos[2])
+
+        #Solves end effector rotations for each wrist pos
         for i in sols_wrist:
-            # Get R3
+            # Get rotation of third link
             r3 = np.matmul(
                 np.matmul(
-                    tfm.rotation_z(
-                        i[0]), tfm.rotation_y(
-                        i[1])), tfm.rotation_y(
-                    i[2]))
+                    tfm.rotation_z(i[0]),
+                        tfm.rotation_y(i[1])),
+                        tfm.rotation_y(i[2]))
+            
+            #Sets up xyx angle conversion problem and solves it
             xyx = np.matmul(np.linalg.inv(r3), end_rotation)
             q5 = [math.acos(xyx[0, 0]), -1 * math.acos(xyx[0, 0])]
             for q in q5:
                 if xyx[0, 0] == 1:
-                    # Singularity
+                    #Handles singularity case
                     q4 = 0
                     q6 = math.atan2(xyx[2, 1], xyx[1, 1])
                     solutions.append([i[0], i[1], i[2], q4, q, q6])
