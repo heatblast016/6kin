@@ -1,6 +1,6 @@
 import numpy as np
 import math
-import transformations as tfm
+from transformations import tfm
 
 
 class solver:
