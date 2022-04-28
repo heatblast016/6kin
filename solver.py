@@ -56,51 +56,53 @@ class solver:
         x4 = np.matmul(t6, np.array([self.l4, 0, 0, 1]))
         return [x1, x2, x3, x4]
 
-    def solve_inverse_2dof(self, x, z):
-        """Solves 2 degree of freedom inverse kinematics"""
-        # Calculates cosine of joint 2 using lengths
-        c2 = (x**2 + z**2 - self.l2**2 - self.l3**2) / (2 * self.l3 * self.l2)
-
-        # Checks edge cases and returns special outputs
-        if abs(c2) > 1:
-            return []
-        elif c2 == 1:
-            return [(math.atan2(z, x), 0)]
-        elif c2 == -1 and (x**2 + z**2) == 0:
-            return [(0, math.pi)]
-        else:
-            # Solves the general case 
-            q21 = math.acos(c2)
-            q22 = -math.acos(c2)
-            solutions = []
-            solutions2 = []
-            if q21 == q22:
-                solutions2.append(q21)
-            else:
-                solutions2.append(q21)
-                solutions2.append(q22)
-            theta = math.atan2(z, x)
-            for q2 in solutions2:
-                q1 = theta - \
-                    math.atan2(self.l3 * math.sin(q2), self.l2 + self.l3 * math.cos(q2))
-                solutions.append(np.array([q1, q2]))
-            return solutions
-
-    def solve_inverse_3dof(self, x, y, z):
-        """Solves 3 degrees-of-freedom inverse kinematics problem"""
-        solutions = []
-        baserotations = [math.atan2(y, x), math.atan2(y, x) + math.pi]
-
-        #Solves equations for each possible base rotation
-        for i, q1 in enumerate(baserotations):
-            sols = self.solve_inverse_2dof(
-                (-1)**i * math.sqrt(x**2 + y**2), -1 * z + self.l1)
-            for sol in sols:
-                solutions.append(np.insert(sol, 0, q1))
-        return solutions
-
     def solve_inverse(self, x, y, z, roll, pitch, yaw):
         """Solves inverse kinematics analytically for a 6-dof arm"""
+
+        # Inner helper functions
+        def solve_inverse_2dof(x, z):
+            """Solves 2 degree of freedom inverse kinematics"""
+            # Calculates cosine of joint 2 using lengths
+            c2 = (x**2 + z**2 - self.l2**2 - self.l3**2) / \
+                (2 * self.l3 * self.l2)
+
+            # Checks edge cases and returns special outputs
+            if abs(c2) > 1:
+                return []
+            elif c2 == 1:
+                return [(math.atan2(z, x), 0)]
+            elif c2 == -1 and (x**2 + z**2) == 0:
+                return [(0, math.pi)]
+            else:
+                # Solves the general case
+                q21 = math.acos(c2)
+                q22 = -math.acos(c2)
+                solutions = []
+                solutions2 = []
+                if q21 == q22:
+                    solutions2.append(q21)
+                else:
+                    solutions2.append(q21)
+                    solutions2.append(q22)
+                theta = math.atan2(z, x)
+                for q2 in solutions2:
+                    q1 = theta - math.atan2(self.l3 * math.sin(q2), self.l2 + self.l3 * math.cos(q2))
+                    solutions.append(np.array([q1, q2]))
+                return solutions
+
+        def solve_inverse_3dof(x, y, z):
+            """Solves 3 degrees-of-freedom inverse kinematics problem"""
+            solutions = []
+            baserotations = [math.atan2(y, x), math.atan2(y, x) + math.pi]
+
+            # Solves equations for each possible base rotation
+            for i, q1 in enumerate(baserotations):
+                sols = solve_inverse_2dof(
+                    (-1)**i * math.sqrt(x**2 + y**2), -1 * z + self.l1)
+                for sol in sols:
+                    solutions.append(np.insert(sol, 0, q1))
+            return solutions
+
         solutions = []
         fingertip = np.array([x, y, z])
         end_rotation = np.matmul(
@@ -111,32 +113,33 @@ class solver:
 
         end_offset = np.array([self.l4, 0, 0])
 
-        #Gets wrist position from end position and orientation
+        # Gets wrist position from end position and orientation
         wrist_pos = fingertip - np.matmul(end_rotation, end_offset)
 
-        #Solves 3-dof IK for wrist
-        sols_wrist = self.solve_inverse_3dof(
+        # Solves 3-dof IK for wrist
+        sols_wrist = solve_inverse_3dof(
             wrist_pos[0], wrist_pos[1], wrist_pos[2])
 
-        #Solves end effector rotations for each wrist pos
+        # Solves end effector rotations for each wrist pos
         for i in sols_wrist:
             # Get rotation of third link
             r3 = np.matmul(
                 np.matmul(
                     tfm.rotation_z(i[0]),
-                        tfm.rotation_y(i[1])),
-                        tfm.rotation_y(i[2]))
-            
-            #Sets up xyx angle conversion problem and solves it
+                    tfm.rotation_y(i[1])),
+                tfm.rotation_y(i[2]))
+
+            # Sets up xyx angle conversion problem and solves it
             xyx = np.matmul(np.linalg.inv(r3), end_rotation)
             q5 = [math.acos(xyx[0, 0]), -1 * math.acos(xyx[0, 0])]
             for q in q5:
                 if xyx[0, 0] == 1:
-                    #Handles singularity case
+                    # Handles singularity case
                     q4 = 0
                     q6 = math.atan2(xyx[2, 1], xyx[1, 1])
                     solutions.append([i[0], i[1], i[2], q4, q, q6])
                 else:
+                    #General case
                     sinq = math.sin(q)
                     q4 = math.atan2(xyx[1, 0] / sinq, -1 * xyx[2, 0] / sinq)
                     q6 = math.atan2(xyx[0, 1] / sinq, xyx[0, 2] / sinq)
